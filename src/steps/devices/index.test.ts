@@ -1,4 +1,5 @@
 import { executeStepWithDependencies } from '@jupiterone/integration-sdk-testing';
+
 import { buildStepTestConfigForStep } from '../../../test/config';
 import { Recording, setupProjectRecording } from '../../../test/recording';
 import { Steps } from '../constants';
@@ -9,35 +10,24 @@ afterEach(async () => {
   await recording.stop();
 });
 
-test('fetch-users', async () => {
+test('fetch-devices', async () => {
   recording = setupProjectRecording({
     directory: __dirname,
-    name: 'fetch-users',
+    name: 'fetch-devices',
   });
 
-  const stepConfig = buildStepTestConfigForStep(Steps.USERS);
+  const stepConfig = buildStepTestConfigForStep(Steps.DEVICE);
   const stepResult = await executeStepWithDependencies(stepConfig);
   expect(stepResult).toMatchStepMetadata(stepConfig);
 });
 
-test('fetch-groups', async () => {
+test('build-device-group-device-relationship', async () => {
   recording = setupProjectRecording({
     directory: __dirname,
-    name: 'fetch-groups',
+    name: 'build-device-group-device-relationship',
   });
 
-  const stepConfig = buildStepTestConfigForStep(Steps.GROUPS);
-  const stepResult = await executeStepWithDependencies(stepConfig);
-  expect(stepResult).toMatchStepMetadata(stepConfig);
-});
-
-test('build-user-group-relationships', async () => {
-  recording = setupProjectRecording({
-    directory: __dirname,
-    name: 'build-user-group-relationships',
-  });
-
-  const stepConfig = buildStepTestConfigForStep(Steps.GROUP_USER_RELATIONSHIPS);
+  const stepConfig = buildStepTestConfigForStep(Steps.DEVICE_GROUPS_DEVICE);
   const stepResult = await executeStepWithDependencies(stepConfig);
   expect(stepResult).toMatchStepMetadata(stepConfig);
 });

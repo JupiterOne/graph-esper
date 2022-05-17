@@ -6,75 +6,67 @@ import {
 
 export const Steps = {
   ACCOUNT: 'fetch-account',
-  USERS: 'fetch-users',
-  GROUPS: 'fetch-groups',
-  GROUP_USER_RELATIONSHIPS: 'build-user-group-relationships',
+  APPLICATION: 'fetch-application',
+  DEVICE_GROUPS: 'fetch-device-groups',
+  DEVICE_GROUPS_DEVICE: 'build-device-groups-device-relationship',
+  DEVICE: 'fetch-devices',
 };
 
 export const Entities: Record<
-  'ACCOUNT' | 'GROUP' | 'USER',
+  'ACCOUNT' | 'APPLICATION' | 'DEVICE_GROUP' | 'DEVICE',
   StepEntityMetadata
 > = {
   ACCOUNT: {
     resourceName: 'Account',
-    _type: 'acme_account',
+    _type: 'esper_account',
     _class: ['Account'],
-    schema: {
-      properties: {
-        mfaEnabled: { type: 'boolean' },
-        manager: { type: 'string' },
-      },
-      required: ['mfaEnabled', 'manager'],
-    },
   },
-  GROUP: {
-    resourceName: 'UserGroup',
-    _type: 'acme_group',
-    _class: ['UserGroup'],
-    schema: {
-      properties: {
-        email: { type: 'string' },
-        logoLink: { type: 'string' },
-      },
-      required: ['email', 'logoLink'],
-    },
+  APPLICATION: {
+    resourceName: 'Application',
+    _type: 'esper_application',
+    _class: ['Application'],
   },
-  USER: {
-    resourceName: 'User',
-    _type: 'acme_user',
-    _class: ['User'],
-    schema: {
-      properties: {
-        username: { type: 'string' },
-        email: { type: 'string' },
-        active: { type: 'boolean' },
-        firstName: { type: 'string' },
-      },
-      required: ['username', 'email', 'active', 'firstName'],
-    },
+  DEVICE_GROUP: {
+    resourceName: 'Device Group',
+    _type: 'esper_device_group',
+    _class: ['Group'],
+  },
+  DEVICE: {
+    resourceName: 'Device',
+    _type: 'esper_device',
+    _class: ['Device'],
   },
 };
 
 export const Relationships: Record<
-  'ACCOUNT_HAS_USER' | 'ACCOUNT_HAS_GROUP' | 'GROUP_HAS_USER',
+  | 'ACCOUNT_HAS_APPLICATION'
+  | 'ACCOUNT_HAS_DEVICE_GROUP'
+  | 'DEVICE_GROUP_HAS_DEVICE'
+  | 'ACCOUNT_HAS_DEVICE',
   StepRelationshipMetadata
 > = {
-  ACCOUNT_HAS_USER: {
-    _type: 'acme_account_has_user',
+  ACCOUNT_HAS_APPLICATION: {
+    _type: 'esper_account_has_application',
     sourceType: Entities.ACCOUNT._type,
     _class: RelationshipClass.HAS,
-    targetType: Entities.USER._type,
+    targetType: Entities.APPLICATION._type,
   },
-  ACCOUNT_HAS_GROUP: {
-    _type: 'acme_account_has_group',
+  ACCOUNT_HAS_DEVICE_GROUP: {
+    _type: 'esper_account_has_device_group',
     sourceType: Entities.ACCOUNT._type,
     _class: RelationshipClass.HAS,
-    targetType: Entities.GROUP._type,
+    targetType: Entities.DEVICE_GROUP._type,
   },
-  GROUP_HAS_USER: {
-    _type: 'acme_group_has_user',
-    sourceType: Entities.GROUP._type,
+  DEVICE_GROUP_HAS_DEVICE: {
+    _type: 'esper_device_group_has_device',
+    sourceType: Entities.DEVICE_GROUP._type,
     _class: RelationshipClass.HAS,
-    targetType: Entities.USER._type,
+    targetType: Entities.DEVICE._type,
+  },
+  ACCOUNT_HAS_DEVICE: {
+    _type: 'esper_account_has_device',
+    sourceType: Entities.ACCOUNT._type,
+    _class: RelationshipClass.HAS,
+    targetType: Entities.DEVICE._type,
   },
 };

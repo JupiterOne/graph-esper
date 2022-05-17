@@ -1,121 +1,157 @@
-import http from 'http';
-
-import { IntegrationProviderAuthenticationError } from '@jupiterone/integration-sdk-core';
+import fetch, { Response } from 'node-fetch';
+import {
+  IntegrationProviderAPIError,
+  IntegrationProviderAuthenticationError,
+} from '@jupiterone/integration-sdk-core';
+import { retry } from '@lifeomic/attempt';
 
 import { IntegrationConfig } from './config';
-import { AcmeUser, AcmeGroup } from './types';
+import {
+  EsperApplication,
+  EsperDevice,
+  EsperDeviceGroup,
+  EsperEnterprise,
+} from './types';
 
 export type ResourceIteratee<T> = (each: T) => Promise<void> | void;
 
-/**
- * An APIClient maintains authentication state and provides an interface to
- * third party data APIs.
- *
- * It is recommended that integrations wrap provider data APIs to provide a
- * place to handle error responses and implement common patterns for iterating
- * resources.
- */
 export class APIClient {
   constructor(readonly config: IntegrationConfig) {}
+  private limit = 100;
+  private withBaseUri = (path: string) =>
+    `https://${this.config.domain}-api.esper.cloud/api/enterprise/${this.config.enterpriseId}/${path}`;
 
-  public async verifyAuthentication(): Promise<void> {
-    // TODO make the most light-weight request possible to validate
-    // authentication works with the provided credentials, throw an err if
-    // authentication fails
-    const request = new Promise<void>((resolve, reject) => {
-      http.get(
-        {
-          hostname: 'localhost',
-          port: 443,
-          path: '/api/v1/some/endpoint?limit=1',
-          agent: false,
-          timeout: 10,
+  private checkStatus = (response: Response) => {
+    if (response.ok) {
+      return response;
+    } else {
+      throw new IntegrationProviderAPIError(response);
+    }
+  };
+
+  private async request(
+    uri: string,
+    method: 'GET' | 'HEAD' = 'GET',
+  ): Promise<Response> {
+    try {
+      const options = {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
         },
-        (res) => {
-          if (res.statusCode !== 200) {
-            reject(new Error('Provider authentication failed'));
-          } else {
-            resolve();
-          }
+      };
+
+      // Handle rate-limiting
+      const response = await retry(
+        async () => {
+          const res: Response = await fetch(uri, options);
+          this.checkStatus(res);
+          return res;
+        },
+        {
+          delay: 5000,
+          maxAttempts: 10,
+          handleError: (err, context) => {
+            if (
+              err.statusCode !== 429 ||
+              ([500, 502, 503].includes(err.statusCode) &&
+                context.attemptNum > 1)
+            )
+              context.abort();
+          },
         },
       );
-    });
-
-    try {
-      await request;
+      return response.json();
     } catch (err) {
-      throw new IntegrationProviderAuthenticationError({
-        cause: err,
-        endpoint: 'https://localhost/api/v1/some/endpoint?limit=1',
+      throw new IntegrationProviderAPIError({
+        endpoint: uri,
         status: err.status,
         statusText: err.statusText,
       });
     }
   }
 
-  /**
-   * Iterates each user resource in the provider.
-   *
-   * @param iteratee receives each resource to produce entities/relationships
-   */
-  public async iterateUsers(
-    iteratee: ResourceIteratee<AcmeUser>,
+  private async paginatedRequest<T>(
+    uri: string,
+    iteratee: ResourceIteratee<T>,
   ): Promise<void> {
-    // TODO paginate an endpoint, invoke the iteratee with each record in the
-    // page
-    //
-    // The provider API will hopefully support pagination. Functions like this
-    // should maintain pagination state, and for each page, for each record in
-    // the page, invoke the `ResourceIteratee`. This will encourage a pattern
-    // where each resource is processed and dropped from memory.
+    try {
+      let next = null;
+      do {
+        const response = await this.request(next || uri, 'GET');
 
-    const users: AcmeUser[] = [
-      {
-        id: 'acme-user-1',
-        name: 'User One',
-      },
-      {
-        id: 'acme-user-2',
-        name: 'User Two',
-      },
-    ];
-
-    for (const user of users) {
-      await iteratee(user);
+        for (const result of response.results) await iteratee(result);
+        next = response.next;
+      } while (next);
+    } catch (err) {
+      throw new IntegrationProviderAPIError({
+        cause: new Error(err.message),
+        endpoint: uri,
+        status: err.statusCode,
+        statusText: err.message,
+      });
     }
   }
 
-  /**
-   * Iterates each group resource in the provider.
-   *
-   * @param iteratee receives each resource to produce entities/relationships
-   */
-  public async iterateGroups(
-    iteratee: ResourceIteratee<AcmeGroup>,
-  ): Promise<void> {
-    // TODO paginate an endpoint, invoke the iteratee with each record in the
-    // page
-    //
-    // The provider API will hopefully support pagination. Functions like this
-    // should maintain pagination state, and for each page, for each record in
-    // the page, invoke the `ResourceIteratee`. This will encourage a pattern
-    // where each resource is processed and dropped from memory.
-
-    const groups: AcmeGroup[] = [
-      {
-        id: 'acme-group-1',
-        name: 'Group One',
-        users: [
-          {
-            id: 'acme-user-1',
-          },
-        ],
-      },
-    ];
-
-    for (const group of groups) {
-      await iteratee(group);
+  public async verifyAuthentication(): Promise<void> {
+    const uri = this.withBaseUri('');
+    try {
+      await this.request(uri);
+    } catch (err) {
+      throw new IntegrationProviderAuthenticationError({
+        cause: err,
+        endpoint: uri,
+        status: err.status,
+        statusText: err.statusText,
+      });
     }
+  }
+
+  public async fetchEnterprise(): Promise<EsperEnterprise> {
+    const uri = this.withBaseUri(``);
+    return this.request(uri);
+  }
+
+  /**
+   * Iterates each application resource in the provider.
+   *
+   * @param iteratee receives each applcation to produce entities/relationships
+   */
+  public async iterateApplications(
+    iteratee: ResourceIteratee<EsperApplication>,
+  ): Promise<void> {
+    await this.paginatedRequest<EsperApplication>(
+      this.withBaseUri(`application/?limit=${this.limit}`),
+      iteratee,
+    );
+  }
+
+  /**
+   * Iterates each device group resource in the provider.
+   *
+   * @param iteratee receives each device group to produce entities/relationships
+   */
+  public async iterateDeviceGroups(
+    iteratee: ResourceIteratee<EsperDeviceGroup>,
+  ): Promise<void> {
+    await this.paginatedRequest<EsperDeviceGroup>(
+      this.withBaseUri(`devicegroup/?limit=${this.limit}`),
+      iteratee,
+    );
+  }
+
+  /**
+   * Iterates each device resource in the provider.
+   *
+   * @param iteratee receives each device to produce entities/relationships
+   */
+  public async iterateDevices(
+    iteratee: ResourceIteratee<EsperDevice>,
+  ): Promise<void> {
+    await this.paginatedRequest<EsperDevice>(
+      this.withBaseUri(`device/?limit=${this.limit}`),
+      iteratee,
+    );
   }
 }
 
