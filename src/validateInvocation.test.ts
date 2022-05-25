@@ -2,6 +2,7 @@ import {
   createMockExecutionContext,
   Recording,
 } from '@jupiterone/integration-sdk-testing';
+
 import { integrationConfig } from '../test/config';
 import { setupProjectRecording } from '../test/recording';
 import { IntegrationConfig, validateInvocation } from './config';
@@ -21,7 +22,7 @@ describe('#validateInvocation', () => {
     });
 
     await expect(validateInvocation(executionContext)).rejects.toThrow(
-      'Config requires all of {clientId, clientSecret}',
+      'Config requires all of {domain, accessToken, enterpriseId}',
     );
   });
 
@@ -67,8 +68,9 @@ describe('#validateInvocation', () => {
 
         const executionContext = createMockExecutionContext({
           instanceConfig: {
-            clientId: 'INVALID',
-            clientSecret: integrationConfig.clientSecret,
+            domain: 'INVALID',
+            accessToken: integrationConfig.accessToken,
+            enterpriseId: integrationConfig.enterpriseId,
           },
         });
 
@@ -90,8 +92,9 @@ describe('#validateInvocation', () => {
 
         const executionContext = createMockExecutionContext({
           instanceConfig: {
-            clientId: integrationConfig.clientSecret,
-            clientSecret: 'INVALID',
+            domain: integrationConfig.domain,
+            accessToken: 'INVALID',
+            enterpriseId: integrationConfig.enterpriseId,
           },
         });
 
